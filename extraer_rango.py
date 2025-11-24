@@ -1,20 +1,19 @@
 import pandas as pd
+from openpyxl import load_workbook
 
 archivo = "input/archivo.xlsx"
 hoja_fecha = "RESULTADOS FB"
 hoja_datos = "RECLAM. FB"
 
 def main():
-    # 1) Leer la fecha de J3
-    df_fecha = pd.read_excel(
-        archivo,
-        sheet_name=hoja_fecha,
-        usecols="J",
-        skiprows=2,  # fila 3
-        nrows=1
-    )
-    fecha = df_fecha.iloc[0, 0]
-    fecha = pd.to_datetime(fecha).date()  # solo fecha
+    # 1) Leer la fecha de J3 usando openpyxl
+    wb = load_workbook(filename=archivo, data_only=True)
+    ws_fecha = wb[hoja_fecha]
+    fecha = ws_fecha["J3"].value  # lee directamente J3
+
+    # Opcional: convertir a solo fecha si tiene hora
+    if hasattr(fecha, "date"):
+        fecha = fecha.date()
 
     # 2) Leer el rango de datos ajustado (A:D, 8 filas)
     df_datos = pd.read_excel(
