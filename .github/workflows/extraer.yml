@@ -1,0 +1,29 @@
+name: Extraer Rango
+
+on:
+  workflow_dispatch:   # Se ejecuta manualmente
+
+jobs:
+  extraer:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      - name: Ejecutar script
+        run: python extraer_rango.py
+
+      - name: Guardar artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: rango-extraido
+          path: output/rango_extraido.xlsx
