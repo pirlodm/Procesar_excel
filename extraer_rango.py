@@ -7,20 +7,18 @@ hoja_fecha = "RESULTADOS FB"
 hoja_datos = "RECLAM. FB"
 
 def main():
-    # 1) Leer la celda J3 usando openpyxl
+    # 1) Abrir workbook con openpyxl
     wb = load_workbook(filename=archivo, data_only=True)
+
+    # 2) Leer fecha de J3 de RESULTADOS FB
     ws_fecha = wb[hoja_fecha]
-    valor = ws_fecha["J3"].value  # puede ser string
-
-    # 2) Convertir a fecha
-    if isinstance(valor, str):
-        # Supongamos formato "DD/MM/YYYY HH:MM:SS"
-        fecha = datetime.strptime(valor.split()[0], "%d/%m/%Y").date()
+    valor_fecha = ws_fecha["J3"].value
+    if isinstance(valor_fecha, str):
+        fecha = datetime.strptime(valor_fecha.split()[0], "%d/%m/%Y").date()
     else:
-        # si ya es datetime
-        fecha = valor.date() if hasattr(valor, "date") else valor
+        fecha = valor_fecha.date() if hasattr(valor_fecha, "date") else valor_fecha
 
-    # 3) Leer el rango de datos ajustado (A:D, 8 filas)
+    # 3) Leer rango de datos de RECLAM. FB usando pandas
     df_datos = pd.read_excel(
         archivo,
         sheet_name=hoja_datos,
@@ -29,12 +27,5 @@ def main():
         nrows=8
     )
 
-    # 4) Añadir la fecha como primera columna
-    df_datos.insert(0, "Fecha", fecha)
+    # 4) Leer B2 y repetir en toda la
 
-    # 5) Guardar resultado
-    df_datos.to_excel("output/rango_extraido.xlsx", index=False)
-    print("✔ Datos extraídos con fecha como primera columna, 3 filas menos y sin columna E.")
-
-if __name__ == "__main__":
-    main()
