@@ -27,5 +27,17 @@ def main():
         nrows=8
     )
 
-    # 4) Leer B2 y repetir en toda la
+    # 4) Leer B2 y repetir en toda la columna
+    ws_datos = wb[hoja_datos]
+    valor_b2 = ws_datos["B2"].value
+    df_datos.insert(1, "ColB", valor_b2)  # segunda columna
 
+    # 5) Añadir la fecha como primera columna
+    df_datos.insert(0, "Fecha", fecha)
+
+    # 6) Guardar resultado
+    df_datos.to_excel("output/rango_extraido.xlsx", index=False)
+    print("✔ Datos extraídos con fecha en primera columna y valor de B2 repetido en columna B.")
+
+if __name__ == "__main__":
+    main()
