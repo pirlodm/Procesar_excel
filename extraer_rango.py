@@ -1,24 +1,35 @@
 import pandas as pd
 
-# Archivo dentro de input/
 archivo = "input/archivo.xlsx"
-
-# Nombre de la hoja
-hoja = "RECLAM. FB"
+hoja_fecha = "RESULTADOS FB"
+hoja_datos = "RECLAM. FB"
 
 def main():
-    # Leer SOLO el rango A4:E14
-    df = pd.read_excel(
+    # 1) Leer la fecha de J3
+    df_fecha = pd.read_excel(
         archivo,
-        sheet_name=hoja,
-        usecols="A:E",
-        skiprows=3,   # salta las primeras 3 filas → empieza en A4
-        nrows=11      # 11 filas de A4 a A14
+        sheet_name=hoja_fecha,
+        usecols="J",
+        skiprows=2,
+        nrows=1
+    )
+    fecha = df_fecha.iloc[0, 0]
+
+    # 2) Leer el rango de datos ajustado
+    df_datos = pd.read_excel(
+        archivo,
+        sheet_name=hoja_datos,
+        usecols="A:D",  # quitamos la columna E
+        skiprows=3,
+        nrows=8         # quitamos 3 filas
     )
 
-    # Guardar resultado
-    df.to_excel("output/rango_extraido.xlsx", index=False)
-    print("✔ Rango A4:E14 extraído correctamente.")
+    # 3) Añadir la fecha como primera columna
+    df_datos.insert(0, "Fecha", fecha)
+
+    # 4) Guardar resultado
+    df_datos.to_excel("output/rango_extraido.xlsx", index=False)
+    print("✔ Datos extraídos con fecha como primera columna, 3 filas menos y sin columna E.")
 
 if __name__ == "__main__":
     main()
