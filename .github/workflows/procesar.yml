@@ -1,1 +1,38 @@
+name: Procesar Excel
 
+# Se activa cuando haces un push (subes cambios) o manualmente desde la web
+on:
+  push:
+    paths:
+      - 'input/*.xlsx'       # Se activa si subes un nuevo excel a input
+      - 'transformacion_datos.py' # O si cambias el código
+  workflow_dispatch:         # Permite ejecutarlo con un botón manual
+
+jobs:
+  procesar-datos:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write        # Permiso para guardar el archivo generado en el repo
+
+    steps:
+      - name: Descargar repositorio
+        uses: actions/checkout@v4
+
+      - name: Instalar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instalar librerías
+        run: |
+          pip install -r requirements.txt
+
+      - name: Ejecutar transformación
+        run: |
+          python transformacion_datos.py
+
+      - name: Guardar cambios (Commit & Push)
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Automático: Datos procesados actualizados"
+          file_pattern: "output/*.xlsx"
