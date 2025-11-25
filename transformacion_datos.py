@@ -6,65 +6,92 @@ from pathlib import Path
 import re
 
 # --- CONFIGURACIÓN ---
-INPUT_DIR = "input"
-OUTPUT_DIR = "output"
+BASE_DIR = Path(__file__).parent
+INPUT_DIR = BASE_DIR / "input"
+OUTPUT_DIR = BASE_DIR / "output"
+
 NOMBRE_ARCHIVO_ORIGEN = "archivo.xlsx"
 ARCHIVO_SALIDA = "datos_transformados.xlsx"
 HOJA_DATOS = "RECLAM. FB"
-HOJA_FECHA = "RESULTADOS FB"
+HOJA_METADATOS = "RESULTADOS FB" # Usaremos esta hoja para FECHA y PRODUCTO
 
-# Definir rutas
-BASE_DIR = Path(__file__).resolve().parent
-RUTA_ORIGEN = BASE_DIR / INPUT_DIR / NOMBRE_ARCHIVO_ORIGEN
-RUTA_SALIDA = BASE_DIR / OUTPUT_DIR / ARCHIVO_SALIDA
+RUTA_ORIGEN = INPUT_DIR / NOMBRE_ARCHIVO_ORIGEN
+RUTA_SALIDA = OUTPUT_DIR / ARCHIVO_SALIDA
+
+def encontrar_producto_en_resultados(wb, hoja_nombre):
+    """
+    Busca el producto en la hoja 'RESULTADOS FB', celda C2.
+    Texto esperado: 'RESULTADOS NETOS POR CLIENTES FRAMBUESA'
+    """
+    producto_detectado = "DESCONOCIDO"
+    
+    if hoja_nombre not in wb.sheetnames:
+        return producto_detectado
+        
+    ws = wb[hoja_nombre]
+    
+    # Leemos la celda C2 directamente, como pediste
+    celda_c2 = ws["C2"].value
+    
+    if celda_c2 and isinstance(celda_c2, str):
+        texto = str(celda_c2).strip().upper()
+        print(f"Texto encontrado en {hoja_nombre}!C2: '{texto}'")
+        
+        # Lógica de extracción:
+        # Buscamos la palabra que viene después de "CLIENTES"
+        # Ejemplo: "RESULTADOS NETOS POR CLIENTES FRAMBUESA" -> "FRAMBUESA"
+        if "CLIENTES" in texto:
+            partes = texto.split("CLIENTES")
+            if len(partes) > 1:
+                # Tomamos la parte derecha y limpiamos espacios
+                # Quitamos posibles caracteres extra que no sean letras
+                resto = partes[1].strip()
+                # Cogemos la primera palabra que aparezca
+                producto_detectado = resto.split()[0]
+        else:
+            # Si no dice "CLIENTES", intentamos coger la última palabra como plan B
+            producto_detectado = texto.split()[-1]
+
+    return producto_detectado
 
 def main():
-    print(f"Iniciando transformación desde: {RUTA_ORIGEN}")
+    print(f"--- Iniciando proceso en GitHub Actions ---")
     
-    # Asegurar que el directorio output existe
-    (BASE_DIR / OUTPUT_DIR).mkdir(parents=True, exist_ok=True)
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    
+    if not RUTA_ORIGEN.exists():
+        print(f"❌ ERROR: No se encuentra '{NOMBRE_ARCHIVO_ORIGEN}' en input.")
+        exit(1)
 
-    # Variables para almacenar lo que leamos con openpyxl
+    # Variables iniciales
     fecha = np.nan
     producto = "DESCONOCIDO"
 
-    # --- 1. LECTURA DE CABECERAS (FECHA Y PRODUCTO) ---
+    # --- 1. LECTURA DE METADATOS (FECHA Y PRODUCTO) ---
     try:
         wb = load_workbook(filename=RUTA_ORIGEN, data_only=True)
         
-        # A) Leer FECHA de la hoja RESULTADOS FB
-        if HOJA_FECHA in wb.sheetnames:
-            ws_fecha = wb[HOJA_FECHA]
-            val_fecha = ws_fecha["J3"].value
+        # A) Leer FECHA de 'RESULTADOS FB' (J3)
+        if HOJA_METADATOS in wb.sheetnames:
+            ws_meta = wb[HOJA_METADATOS]
+            val_fecha = ws_meta["J3"].value
             if isinstance(val_fecha, datetime):
                 fecha = val_fecha.date()
+            else:
+                try:
+                    fecha = datetime.strptime(str(val_fecha).split()[0], "%d/%m/%Y").date()
+                except:
+                    pass
         
-        # B) Leer PRODUCTO de la hoja RECLAM. FB (Fila 2, Celda C2)
-        # Aunque esté combinada C-J, el valor vive en C2.
-        if HOJA_DATOS in wb.sheetnames:
-            ws_datos = wb[HOJA_DATOS]
-            # Leemos la celda C2
-            texto_cabecera = ws_datos["C2"].value
-            
-            if texto_cabecera:
-                # Convertimos a texto, quitamos espacios y dividimos por palabras
-                palabras = str(texto_cabecera).strip().split()
-                if palabras:
-                    # Tomamos la última palabra
-                    producto = palabras[-1]
-                    
-                    # Opcional: Si quieres limpiar puntuación (puntos, comas) de esa palabra:
-                    # producto = re.sub(r'[^\w\s]', '', producto)
+        # B) Leer PRODUCTO de 'RESULTADOS FB' (C2)
+        producto = encontrar_producto_en_resultados(wb, HOJA_METADATOS)
+        print(f"✅ Producto detectado: {producto}")
 
-    except FileNotFoundError:
-        print(f"❌ ERROR: No se encuentra {NOMBRE_ARCHIVO_ORIGEN} en input.")
-        exit(1)
     except Exception as e:
         print(f"Advertencia leyendo metadatos: {e}")
 
-    # --- 2. LECTURA DE DATOS (PANDAS) ---
-    print(f"Producto detectado: {producto}")
-    
+    # --- 2. LECTURA DE DATOS CON PANDAS ---
+    print("Leyendo datos...")
     df = pd.read_excel(RUTA_ORIGEN, sheet_name=HOJA_DATOS, usecols="A:D", header=3)
     
     # Limpieza
@@ -77,7 +104,7 @@ def main():
     # Filtrar
     df = df[df['Tipo Unidad'].isin(['Reclamo', 'Venta'])].copy()
 
-    # --- 3. PIVOTADO ---
+    # --- 3. TRANSFORMACIÓN ---
     df_pivot = df.pivot_table(
         index=['Nombre proveedor', 'Zona'],
         columns='Tipo Unidad',
@@ -89,11 +116,9 @@ def main():
     df_pivot.columns.name = None
     df_pivot = df_pivot.rename_axis(columns=None)
     
-    # --- 4. INSERTAR COLUMNAS NUEVAS ---
-    # Insertamos la fecha en la posición 0 (primera columna)
+    # --- 4. AÑADIR COLUMNAS NUEVAS ---
+    # Insertamos Fecha (col 0) y Producto (col 1)
     df_pivot.insert(0, "fecha", fecha)
-    
-    # Insertamos el producto en la posición 1 (segunda columna)
     df_pivot.insert(1, "producto", producto)
 
     # --- 5. GUARDADO ---
@@ -102,6 +127,7 @@ def main():
         print(f"✅ Archivo guardado correctamente en: {RUTA_SALIDA}")
     except Exception as e:
         print(f"❌ Error al guardar: {e}")
+        exit(1)
 
 if __name__ == "__main__":
     main()
